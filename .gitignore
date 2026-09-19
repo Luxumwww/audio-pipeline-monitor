@@ -24,3 +24,14 @@ fixtures/
 
 # --- Built APKs are attached to a release, not committed ---
 dist/
+
+# --- Local release signing material ---
+#
+# app/build.gradle.kts only enables the release signing config when
+# keystore.properties exists, so a clone without these still builds. Losing the
+# keystore means future releases cannot be installed as an update over this one -
+# keep a backup somewhere safe.
+keystore.properties
+keystore/
+*.jks
+*.keystore

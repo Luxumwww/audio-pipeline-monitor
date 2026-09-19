@@ -1,4 +1,4 @@
-﻿# 音频链路监视器 (Audio Pipeline Monitor)
+# 音频链路监视器 (Audio Pipeline Monitor)
 
 监视 Android **当前正在播放的音频**走过了哪条链路：应用交出的是什么采样率/位深，
 AudioFlinger 把它重采样成了什么，最后从硬件（扬声器 / USB DAC / 蓝牙耳机）出去的实际
@@ -193,6 +193,18 @@ app/src/main/java/com/audioprobe/
 
 ---
 
-## 9. 许可证
+## 9. 作者与致谢
+
+**作者**：[Luxumwww](https://github.com/Luxumwww) —— 需求、真机验证、发布。
+
+**协作**：本项目的实现由作者与 AI 编码代理 **DeepSeek Harness** 结对完成
+（代码编写、真机 dump 采集与解析、30 个单元测试，以及第 6 节里那批「只有真机才暴露」的
+问题定位）。设计与取舍由作者确认，仓库的维护责任在作者。
+
+如果这份代码帮到了你，欢迎提 issue 反馈——尤其是其他 ROM 上的 `dumpsys` 格式差异。
+
+---
+
+## 10. 许可证
 
 MIT，见 [LICENSE](LICENSE)。

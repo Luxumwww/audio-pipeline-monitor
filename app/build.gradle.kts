@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     // AGP 9 ships built-in Kotlin support, so org.jetbrains.kotlin.android is NOT
     // applied here - adding it would conflict. The Compose compiler plugin is still
@@ -5,6 +7,22 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Release signing is opt-in. The keystore and its passwords are local-only
+// (`keystore.properties` is gitignored), so a fresh clone still configures and builds
+// normally: assembleDebug works, and assembleRelease produces an unsigned APK rather
+// than failing.
+//
+// These have to live outside the `android {}` block: inside it, `java` resolves to the
+// Gradle java extension rather than the package, so `java.util.Properties` would not
+// compile.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigning = keystorePropertiesFile.exists()
 
 android {
     namespace = "com.audioprobe"
@@ -23,6 +41,21 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // v1 covers API < 24; v2/v3 are what modern devices actually verify.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -33,6 +66,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
