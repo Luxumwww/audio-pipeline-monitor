@@ -35,3 +35,6 @@ keystore.properties
 keystore/
 *.jks
 *.keystore
+
+# 图标设计源文件（派生资源已入库）
+图标.png
