@@ -4,6 +4,11 @@
 AudioFlinger 把它重采样成了什么，最后从硬件（扬声器 / USB DAC / 蓝牙耳机）出去的实际
 格式是什么。USB 输出与蓝牙输出都已支持。
 
+> **作者**：[Luxumwww](https://github.com/Luxumwww)
+> **实现**：与 AI 编码代理 **[DeepSeek Harness](https://github.com/deepseek-ai)** 结对完成
+> —— 全部代码、真机 dump 采集与解析、30 个单元测试，以及第 6 节里那批「只有真机才暴露」
+> 的问题定位都由它落地；需求、取舍与真机验收由作者完成。
+
 > 已在真机上验证：
 > - **vivo 机型（MediaTek）/ Android 17 (SDK 37)** — 验证了蓝牙链路
 > - **vivo 机型（MediaTek）/ Android 16 (SDK 36)** — 两台设备的 dump 格式有差异，都已适配
