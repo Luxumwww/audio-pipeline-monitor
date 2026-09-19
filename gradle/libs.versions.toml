@@ -1,0 +1,45 @@
+[versions]
+# AGP 9.x: the AndroidX libraries used here (Compose 1.12.x, core 1.19.0, lifecycle
+# 2.11.0) declare in their AAR metadata that they require AGP >= 9.1.0 and
+# compileSdk >= 37. AGP 9 also has *built-in Kotlin* support, which is why
+# org.jetbrains.kotlin.android is deliberately absent below: applying it alongside
+# AGP 9 conflicts. AGP resolves Kotlin through its own bundled KGP and auto-upgrades
+# to whatever KGP the Compose plugin pulls in.
+agp = "9.1.1"
+kotlin = "2.4.20"
+coreKtx = "1.19.0"
+lifecycle = "2.11.0"
+activityCompose = "1.13.0"
+composeBom = "2026.09.00"
+coroutines = "1.11.0"
+shizuku = "13.1.5"
+junit = "4.13.2"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+
+# Shizuku API + the provider that hands the Shizuku binder to this app.
+# NOTE: Shizuku API 13 no longer exposes Shizuku.newProcess (it is private and is
+# scheduled for removal in API 14). Privileged commands are run through a Shizuku
+# "user service" instead - see app/src/main/aidl/.../IProbeService.aidl.
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

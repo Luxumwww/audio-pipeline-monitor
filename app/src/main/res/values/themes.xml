@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The whole UI is Compose, so this only needs to provide a sane window background
+         before the first frame. No AppCompat and no com.google.android.material
+         dependency is required. -->
+    <style name="Theme.AudioProbe" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

@@ -1,0 +1,13 @@
+# Normalise line endings in the repository to LF so that `gradlew` (a POSIX shell
+# script) stays runnable on Linux and macOS, whatever the contributor's Git config is.
+* text=auto eol=lf
+
+# Windows batch files genuinely need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary - never touch.
+*.jar binary
+*.png binary
+*.webp binary
+*.apk binary

@@ -1,0 +1,26 @@
+# --- Gradle / Android build output ---
+build/
+.gradle/
+.kotlin/
+local.properties
+
+# --- IDE ---
+.idea/
+*.iml
+.DS_Store
+
+# --- Raw device dumps used by the parser tests ---
+#
+# These are captured from a real phone with `adb shell dumpsys ...`. Even though the ROM
+# redacts MAC addresses inside the A2DP state machines, other parts of the same dumps
+# carry unredacted Bluetooth MACs, the device model, the build id and the full list of
+# installed packages. Keep them local; see app/src/test/java/.../Fixtures.kt and the
+# README for how to capture your own. The affected tests skip when they are absent.
+app/src/test/resources/fixtures/
+
+# --- Local scratch space (screenshots, on-device dumps) ---
+.scratch/
+fixtures/
+
+# --- Built APKs are attached to a release, not committed ---
+dist/
