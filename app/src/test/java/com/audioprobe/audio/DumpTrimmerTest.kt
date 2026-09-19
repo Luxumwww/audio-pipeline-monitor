@@ -1,4 +1,4 @@
-﻿package com.audioprobe.audio
+package com.audioprobe.audio
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -73,6 +73,12 @@ class DumpTrimmerTest {
 
         assertEquals(BluetoothParser.parse(raw), BluetoothParser.parse(trimmed))
         assertTrue(trimmed.length < raw.length / 20)
+
+        // The bitrate block sits in the dump's Native: region, far outside
+        // Profile: A2dpService, so the trimmer needs its own rule to keep it.
+        val state = BluetoothParser.parse(trimmed).codecState
+        assertEquals("LOW", state?.qualityTier)
+        assertEquals(330, state?.bitrateKbps)
     }
 
     @Test

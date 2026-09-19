@@ -33,4 +33,15 @@ interface IProbeService {
 
     /** UID the user service actually runs as (2000 for Shizuku-over-adb). */
     int getUid() = 3;
+
+    /**
+     * Build version of the code this user service is running.
+     *
+     * A user service outlives an app update - Shizuku keeps handing back the process it
+     * started from the previous APK - so the app cannot assume the service it is talking
+     * to was built from the same sources. Comparing this against its own
+     * PROBE_SERVICE_VERSION is how it notices. A service from an older build does not
+     * implement this method at all, which reads back as 0 and is just as detectable.
+     */
+    int getServiceVersion() = 5;
 }

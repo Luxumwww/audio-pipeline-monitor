@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.util.Log
 import com.audioprobe.BuildConfig
 import com.audioprobe.IProbeService
+import com.audioprobe.PROBE_SERVICE_VERSION
 import com.audioprobe.ProbeService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,18 +41,21 @@ class ShizukuBackend(private val context: Context) : PrivilegeBackend {
     private var bindRequested = false
     private var remoteUid = -1
 
+    /** One restart attempt per app process, so a version mismatch cannot loop. */
+    private var staleServiceRestartAttempted = false
+
     @Volatile
     private var service: IProbeService? = null
 
     private val userServiceArgs = Shizuku.UserServiceArgs(
         ComponentName(context.packageName, ProbeService::class.java.name)
     )
-        // Non-daemon: the user service is killed together with this app process, so a
-        // finished session never leaves a privileged process behind.
+        // Non-daemon: the user service is meant to be killed together with this app
+        // process, so a finished session never leaves a privileged process behind.
         .daemon(false)
         .processNameSuffix("probe")
         .tag(SERVICE_TAG)
-        .version(SERVICE_VERSION)
+        .version(PROBE_SERVICE_VERSION)
         .debuggable(BuildConfig.DEBUG)
 
     private val onBinderReceived = Shizuku.OnBinderReceivedListener {
@@ -80,6 +84,27 @@ class ShizukuBackend(private val context: Context) : PrivilegeBackend {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val stub = IProbeService.Stub.asInterface(binder)
+
+            // Refuse to run against a service left over from a previous install: it still
+            // executes the old DumpTrimmer/parsers, and nothing would look wrong. Older
+            // builds do not implement getServiceVersion(), which reads back as 0.
+            val reportedVersion = runCatching { stub?.serviceVersion ?: -1 }.getOrDefault(-1)
+            if (reportedVersion != PROBE_SERVICE_VERSION && !staleServiceRestartAttempted) {
+                staleServiceRestartAttempted = true
+                Log.w(
+                    TAG,
+                    "user service reports version $reportedVersion, expected " +
+                        "$PROBE_SERVICE_VERSION - restarting it",
+                )
+                // It cannot be upgraded in place, but it does have exec(), which is enough
+                // to terminate it. Shizuku then spawns a fresh process from this APK.
+                runCatching { stub?.exec(KILL_PROBE_PROCESSES) }
+                service = null
+                bindRequested = false
+                refreshState()
+                return
+            }
+
             service = stub
             remoteUid = try {
                 stub?.uid ?: -1
@@ -87,7 +112,7 @@ class ShizukuBackend(private val context: Context) : PrivilegeBackend {
                 Log.w(TAG, "getUid failed", t)
                 -1
             }
-            Log.i(TAG, "user service connected, uid=$remoteUid")
+            Log.i(TAG, "user service connected, uid=$remoteUid, serviceVersion=$reportedVersion")
             _state.value = PrivilegeState.Ready(remoteUid, safeVersion())
         }
 
@@ -231,12 +256,18 @@ class ShizukuBackend(private val context: Context) : PrivilegeBackend {
         private const val TAG = "AudioProbe/Shizuku"
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
         private const val PERMISSION_REQUEST_CODE = 4210
+
+        /** Combined with [PROBE_SERVICE_VERSION] to form the user service's tag. */
         private const val SERVICE_TAG = "audio-probe"
 
         /**
-         * Bump whenever ProbeService or IProbeService changes, so Shizuku respawns the
-         * user service instead of handing back one that speaks an older AIDL.
+         * Kills every user-service process, including the one running this command, so
+         * the binder reply is lost. That is fine: the point is only to leave no process
+         * behind, so that Shizuku spawns a fresh one from the current APK.
          */
-        private const val SERVICE_VERSION = 3
+        private const val KILL_PROBE_PROCESSES =
+            "for p in \$(/system/bin/ps -A -o PID,NAME " +
+                "| /system/bin/grep 'com.audioprobe:probe' " +
+                "| /system/bin/awk '{print \$1}'); do /system/bin/kill -9 \$p; done"
     }
 }

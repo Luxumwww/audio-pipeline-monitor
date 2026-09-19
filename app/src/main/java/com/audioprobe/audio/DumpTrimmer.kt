@@ -77,6 +77,21 @@ object DumpTrimmer {
         "getSupportsOptionalCodecs:",
     )
 
+    /**
+     * The `A2DP <codec> State:` blocks sit in the dump's `Native:` region - a long way
+     * from `Profile: A2dpService` - and are the only source for the configured bitrate,
+     * so they need their own keep rules.
+     */
+    private val A2DP_STATE_SECTION_RE = Regex("""^A2DP .*State:.*$""")
+
+    private val CODEC_STATE_KEEP = listOf(
+        "Current Codec:",
+        "Config:",
+        "quality mode",
+        "bitrate mode",
+        "(Kbps)",
+    )
+
     fun trim(raw: String): String {
         val fingerAt = raw.indexOf(MARK_FINGER)
         val audioAt = raw.indexOf(MARK_AUDIO)
@@ -119,12 +134,38 @@ object DumpTrimmer {
     fun trimBluetooth(text: String): String {
         val kept = ArrayList<String>()
         var inA2dpService = false
+        var inCodecState = false
+
         for (line in text.lineSequence()) {
             if (line.startsWith("Profile:")) {
                 inA2dpService = line.trim() == "Profile: A2dpService"
+                inCodecState = false
                 if (inA2dpService) kept += line
                 continue
             }
+
+            if (A2DP_STATE_SECTION_RE.matches(line.trim())) {
+                // Keep every codec section header, including the ones we do not read, so
+                // the parser's block boundaries stay intact.
+                inCodecState = true
+                kept += line
+                continue
+            }
+
+            if (inCodecState) {
+                val t = line.trim()
+                if (t.isEmpty()) {
+                    inCodecState = false
+                    continue
+                }
+                if (line[0].isWhitespace()) {
+                    if (CODEC_STATE_KEEP.any(t::contains)) kept += line
+                    continue
+                }
+                inCodecState = false
+                // falls through to the A2dpService rules below
+            }
+
             if (!inA2dpService) continue
             val t = line.trim()
             if (t.startsWith("===") || BT_KEEP_PREFIXES.any(t::startsWith)) kept += line

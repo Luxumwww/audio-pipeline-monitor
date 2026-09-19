@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.audioprobe.audio.AudioFormats
 import com.audioprobe.audio.AudioSnapshot
 import com.audioprobe.audio.BluetoothInfo
+import com.audioprobe.audio.BtCodecState
 import com.audioprobe.audio.ChainLink
 import com.audioprobe.audio.ChainNote
 import com.audioprobe.audio.FlingerOutputThread
@@ -336,6 +337,7 @@ private fun ChainCard(link: ChainLink) {
                         codec.bitsPerSample?.let { "编码输入 $it bit" },
                         codec.channelMode,
                     ).joinToString(" · "),
+                    highlight = bitrateLabel(link.codecState),
                     // Keep the PCM numbers visible: they are the last lossless stage and
                     // the reason a rate conversion may have happened before encoding.
                     secondary = "A2DP 压缩传输；AudioFlinger 侧 HAL 为 " +
@@ -373,8 +375,35 @@ private fun hopLabel(from: Int, to: Int): String? {
     return "重采样 ${AudioFormats.rateLabel(from)} → ${AudioFormats.rateLabel(to)}"
 }
 
+/**
+ * Renders the codec's configured bitrate, e.g. "码率档位 LOW · 330 kbps".
+ *
+ * This is a *configured* value, not measured throughput: with A2DP hardware offload the
+ * encoder lives in the DSP, so the byte counters that would give a live figure stay at 0.
+ * For a fixed tier (LOW/MID/HIGH) it is what the link actually carries; only LDAC's
+ * ADAPTIVE tier varies underneath it.
+ */
+private fun bitrateLabel(state: BtCodecState?): String? {
+    if (state == null) return null
+    val tier = state.qualityTier
+    val kbps = state.bitrateKbps
+    return when {
+        tier != null && kbps != null -> "码率档位 $tier · $kbps kbps"
+        kbps != null -> "码率 $kbps kbps"
+        tier != null -> "码率档位 $tier"
+        state.bitrateMode != null -> "码率模式 ${state.bitrateMode}"
+        else -> null
+    }
+}
+
 @Composable
-private fun StageRow(index: String, title: String, primary: String, secondary: String?) {
+private fun StageRow(
+    index: String,
+    title: String,
+    primary: String,
+    secondary: String?,
+    highlight: String? = null,
+) {
     Row {
         Text(
             index,
@@ -390,6 +419,17 @@ private fun StageRow(index: String, title: String, primary: String, secondary: S
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )
+            if (!highlight.isNullOrBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    highlight,
+                    fontSize = 12.sp,
+                    color = AccentInfo,
+                    modifier = Modifier
+                        .background(AccentInfo.copy(alpha = 0.14f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
             if (!secondary.isNullOrBlank()) {
                 Text(
                     secondary,
@@ -516,6 +556,21 @@ private fun BluetoothCard(info: BluetoothInfo) {
                                 "链路已断开，这是上一次协商结果",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AccentWarn,
+                            )
+                        }
+                    }
+                    // The bitrate tier is a property of the stack's current codec rather
+                    // than of this particular peer, so it is shown once for the active one.
+                    if (device.connected && info.codecState != null) {
+                        bitrateLabel(info.codecState)?.let {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                it,
+                                fontSize = 12.sp,
+                                color = AccentInfo,
+                                modifier = Modifier
+                                    .background(AccentInfo.copy(alpha = 0.14f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }
                     }

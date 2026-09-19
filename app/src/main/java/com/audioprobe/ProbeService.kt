@@ -7,6 +7,21 @@ import androidx.annotation.Keep
 import com.audioprobe.audio.DumpTrimmer
 
 /**
+ * Build version of the privileged half of the app. Bump it whenever ProbeService - or
+ * anything it uses, such as [DumpTrimmer] - changes.
+ *
+ * It is reported over AIDL and compared against its own copy by
+ * [com.audioprobe.priv.ShizukuBackend]. That check exists because a Shizuku user service
+ * outlives an app update: after `adb install -r` the server keeps handing back the process
+ * it started from the previous APK. Bumping `UserServiceArgs.version()` did not force a
+ * respawn, and neither did changing the service tag nor calling
+ * `unbindUserService(remove = true)` - the pid stayed the same in all three cases
+ * (Shizuku 13 / Android 17). Without this check an upgraded app would silently keep
+ * executing the previous build's dump parsing, with no visible symptom.
+ */
+internal const val PROBE_SERVICE_VERSION = 5
+
+/**
  * The privileged half of the app.
  *
  * Shizuku starts this class itself, inside an `app_process` it spawns with the shell
@@ -22,12 +37,46 @@ class ProbeService : IProbeService.Stub {
 
     @Keep
     constructor() : super() {
-        Log.i(TAG, "created; uid=${Process.myUid()}")
+        onCreated("no-arg")
     }
 
     @Keep
     constructor(context: Context) : super() {
-        Log.i(TAG, "created with context; uid=${Process.myUid()}")
+        onCreated("with context")
+    }
+
+    private fun onCreated(which: String) {
+        Log.i(TAG, "created ($which); pid=${Process.myPid()} uid=${Process.myUid()}")
+        reapStaleSiblings()
+    }
+
+    /**
+     * Kills user-service processes left behind by earlier builds.
+     *
+     * Because the tag carries [PROBE_SERVICE_VERSION], each upgrade starts a new process
+     * and leaves the old one running - Shizuku does not reap it. This one runs at startup
+     * and sweeps the others, so a privileged process is never orphaned.
+     */
+    private fun reapStaleSiblings() {
+        try {
+            val me = Process.myPid()
+            val listing = runShell(
+                "/system/bin/ps -A -o PID,NAME | /system/bin/grep 'com.audioprobe:probe'"
+            )
+            val stale = listing.lineSequence()
+                .mapNotNull { line ->
+                    line.trim().split(' ').firstOrNull()?.toIntOrNull()
+                }
+                .filter { it != me }
+                .toList()
+
+            if (stale.isNotEmpty()) {
+                Log.i(TAG, "reaping stale sibling process(es): $stale")
+                runShell("/system/bin/kill -9 " + stale.joinToString(" "))
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "could not reap stale siblings", t)
+        }
     }
 
     /** Reserved by the Shizuku server; it is how unbind+remove actually kills us. */
@@ -41,6 +90,8 @@ class ProbeService : IProbeService.Stub {
     }
 
     override fun getUid(): Int = Process.myUid()
+
+    override fun getServiceVersion(): Int = PROBE_SERVICE_VERSION
 
     /**
      * Runs the probe command set and returns the dumps after [DumpTrimmer] has removed

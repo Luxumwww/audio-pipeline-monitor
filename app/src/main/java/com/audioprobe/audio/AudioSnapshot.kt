@@ -29,6 +29,12 @@ data class ChainLink(
     val bitPerfect: Boolean?,
     val thread: FlingerOutputThread,
     val bluetooth: BtDevice?,
+    /**
+     * Configured bitrate / quality tier for the codec in use, straight from the
+     * `A2DP <codec> State:` block. Null for non-Bluetooth output, and for codecs that
+     * do not report a bitrate at all (SBC, aptX).
+     */
+    val codecState: BtCodecState?,
     val notes: List<ChainNote>,
 ) {
     /** Bluetooth replaces the PCM HAL stage with a codec, so it becomes the last hop. */
@@ -142,6 +148,7 @@ object SnapshotBuilder {
                     bitPerfect = track.bitPerfect,
                     thread = thread,
                     bluetooth = bt,
+                    codecState = if (thread.isBluetooth) bluetooth.codecState else null,
                     notes = buildNotes(track, thread, bt),
                 )
             }

@@ -90,9 +90,35 @@ data class BtDevice(
     val codec: BtCodec?,
 )
 
+/**
+ * The A2DP stack's own per-codec state block - `A2DP LDAC State:`, `A2DP AAC State:` and
+ * so on. It lives in the dump's `Native:` region, nowhere near the `Profile: A2dpService`
+ * block that carries the state machines, and it is the only place that exposes the
+ * configured bitrate.
+ *
+ * Only some codecs say anything about bitrate:
+ *  - LDAC prints a quality tier (`LOW` / `MID` / `HIGH` / `ADAPTIVE`) plus
+ *    `LDAC transmission bitrate (Kbps)`.
+ *  - AAC prints a bitrate *mode* (`Constant (0x0)`), not a number.
+ *  - SBC / aptX / aptX-HD print neither.
+ *
+ * The bitrate is the *configured* one, not measured throughput: with A2DP hardware
+ * offload the encoder runs in the DSP, so every byte counter in this block stays at 0.
+ */
+data class BtCodecState(
+    val codecName: String,
+    val qualityTier: String?,
+    val bitrateKbps: Int?,
+    val bitrateMode: String?,
+)
+
 data class BluetoothInfo(
     val devices: List<BtDevice>,
     val activeDevice: String?,
+    /** From `A2DP Codecs State: Current Codec:`. */
+    val currentCodec: String? = null,
+    /** Decoded from the matching `A2DP <codec> State:` block. */
+    val codecState: BtCodecState? = null,
 ) {
     val active: BtDevice? =
         devices.firstOrNull { it.connected && it.playing }

@@ -1,4 +1,4 @@
-﻿package com.audioprobe.audio
+package com.audioprobe.audio
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -74,5 +74,30 @@ class BluetoothParserTest {
         assertEquals("STEREO", connected.codec?.channelMode)
 
         assertEquals("XX:XX:XX:XX:FA:02", info.active?.address)
+    }
+
+    @Test
+    fun `the configured bitrate and quality tier come from the codec state block`() {
+        // `A2DP Codecs State:` / `A2DP LDAC State:` live in the dump's Native: region,
+        // nowhere near Profile: A2dpService, and are the only place a bitrate appears.
+        val info = BluetoothParser.parse(fixture("bluetooth_connected_android17.txt"))
+
+        assertEquals("LDAC", info.currentCodec)
+
+        val state = info.codecState
+        assertNotNull("A2DP LDAC State must be parsed", state)
+        assertEquals("LDAC", state!!.codecName)
+        assertEquals("LOW", state.qualityTier)
+        assertEquals(330, state.bitrateKbps)
+        assertEquals(null, state.bitrateMode)
+    }
+
+    @Test
+    fun `a dump without the codec state block reports nothing instead of guessing`() {
+        // This capture predates the A2DP <codec> State sections entirely.
+        val info = BluetoothParser.parse(fixture("bluetooth_android17.txt"))
+
+        assertEquals(null, info.currentCodec)
+        assertEquals(null, info.codecState)
     }
 }

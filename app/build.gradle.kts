@@ -1,4 +1,4 @@
-﻿import java.util.Properties
+import java.util.Properties
 
 plugins {
     // AGP 9 ships built-in Kotlin support, so org.jetbrains.kotlin.android is NOT
@@ -37,8 +37,8 @@ android {
         // need API 26; Shizuku itself needs API 23+.
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     signingConfigs {

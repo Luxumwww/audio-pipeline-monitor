@@ -40,6 +40,19 @@ object BluetoothParser {
     private val CODEC_BITS_RE = Regex("""mBitsPerSample:0x[0-9a-fA-F]+\(([^)]*)\)""")
     private val CODEC_CHANNEL_MODE_RE = Regex("""mChannelMode:0x[0-9a-fA-F]+\(([^)]*)\)""")
 
+    // The `A2DP <codec> State:` blocks live in the dump's Native: region and are the only
+    // source for the configured bitrate. Their field names are codec-prefixed and differ
+    // per codec, so they are matched by keyword rather than by exact label.
+    private val CODECS_STATE_RE = Regex("""^A2DP Codecs State:\s*$""")
+    private val CURRENT_CODEC_RE = Regex("""^\s*Current Codec:\s*(\S+)\s*$""")
+    private val A2DP_STATE_HEADER_RE = Regex("""^A2DP (.+?) State:.*$""")
+    private val BITRATE_KBPS_RE = Regex("""\(Kbps\)\s*:\s*(\d+)""")
+    private val QUALITY_MODE_RE = Regex("""quality mode\s*:\s*(.+?)\s*$""")
+    private val BITRATE_MODE_RE = Regex("""bitrate mode\s*:\s*(.+?)\s*$""")
+
+    /** `A2DP <name> State:` headers that are not codec blocks. */
+    private val NON_CODEC_SECTIONS = setOf("Codecs", "Peers", "Source", "Sink")
+
     private const val ACTIVE_DEVICE_NULL = "null"
     private const val ZERO_ADDRESS = "00:00:00:00:00:00"
 
@@ -47,10 +60,70 @@ object BluetoothParser {
         if (text.isBlank()) return BluetoothInfo(emptyList(), null)
 
         val lines = text.split('\n')
+        val currentCodec = parseCurrentCodec(lines)
         return BluetoothInfo(
             devices = parseStateMachines(lines),
             activeDevice = parseActiveDevice(lines),
+            currentCodec = currentCodec,
+            codecState = parseCodecState(lines, currentCodec),
         )
+    }
+
+    /** `A2DP Codecs State:` -> `Current Codec: LDAC`. */
+    private fun parseCurrentCodec(lines: List<String>): String? {
+        var inCodecsState = false
+        for (line in lines) {
+            if (CODECS_STATE_RE.matches(line)) {
+                inCodecsState = true
+                continue
+            }
+            if (!inCodecsState) continue
+            if (line.isNotEmpty() && !line[0].isWhitespace()) return null
+            CURRENT_CODEC_RE.find(line)?.let { return it.groupValues[1] }
+        }
+        return null
+    }
+
+    /**
+     * Reads the block for whichever codec the stack says is current, so a device running
+     * AAC or SBC does not pick up LDAC's numbers.
+     */
+    private fun parseCodecState(lines: List<String>, codecName: String?): BtCodecState? {
+        if (codecName.isNullOrEmpty()) return null
+
+        var i = 0
+        while (i < lines.size) {
+            val header = A2DP_STATE_HEADER_RE.find(lines[i])
+            if (header == null) {
+                i++
+                continue
+            }
+            val name = header.groupValues[1].trim()
+
+            // A codec block is indented until the next non-indented line.
+            var j = i + 1
+            while (j < lines.size && (lines[j].isEmpty() || lines[j][0].isWhitespace())) j++
+
+            if (name !in NON_CODEC_SECTIONS && name.equals(codecName, ignoreCase = true)) {
+                return parseCodecBlock(name, lines.subList(i + 1, j))
+            }
+            i = j
+        }
+        return null
+    }
+
+    private fun parseCodecBlock(name: String, block: List<String>): BtCodecState {
+        var tier: String? = null
+        var bitrate: Int? = null
+        var mode: String? = null
+
+        for (line in block) {
+            val trimmed = line.trim()
+            BITRATE_KBPS_RE.find(trimmed)?.let { bitrate = it.groupValues[1].toIntOrNull() }
+            QUALITY_MODE_RE.find(trimmed)?.let { tier = it.groupValues[1].trim() }
+            BITRATE_MODE_RE.find(trimmed)?.let { mode = it.groupValues[1].trim() }
+        }
+        return BtCodecState(name, tier, bitrate, mode)
     }
 
     /**
